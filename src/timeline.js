@@ -32,6 +32,28 @@ if ('object' == typeof exports && 'undefined' != typeof module) {
 
 // import defaultConfig from './config';
 
+function createSvgEl(name) {
+    return document.createElementNS(d3.ns.prefix.svg, name);
+}
+
+function createDrop(d, i, scales, configuration) {
+    let x = scales.x(d.date),
+        color = configuration.eventColor ? configuration.eventColor(d) : configuration.eventLineColor(d, i)
+    content = configuration.eventPopover(d),
+        shape = configuration.eventShape(d);
+
+
+    return d3.select(createSvgEl('text'))
+        .classed('timeline-pf-drop', true)
+        .classed('timeline-pf-event-group', d.hasOwnProperty("events"))
+        .attr('transform', 'translate(' + x + ')')
+        .attr('fill', color ? color : 'black')
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .text(shape)
+        .node();
+};
+
 const config = {
     start: new Date(0),
     end: new Date(),
@@ -64,6 +86,8 @@ const config = {
     eventHover: null,
     eventZoom: null,
     eventClick: null,
+    eventDblClick: null,
+    dblClick: null, // not on an event
     eventLineColor: (d, i) => {
         switch (i % 5) {
             case 0:
@@ -86,25 +110,36 @@ const config = {
             return '\uf111';
         }
     },
-    eventPopover: (d) => {
-        let popover = '';
-        if (d.hasOwnProperty('events')) {
-            popover = `Group of ${d.events.length} events`;
-        } else {
-            for (let i in d.details) {
-                popover = popover + i.charAt(0).toUpperCase() + i.slice(1) + ': ' + d.details[i] + '<br>';
+    eventPopover:
+        (d) => {
+            let popover = '';
+            if (d.hasOwnProperty('events')) {
+                popover = `Group of ${d.events.length} events`;
+            } else {
+                for (let i in d.details) {
+                    popover = popover + i.charAt(0).toUpperCase() + i.slice(1) + ': ' + d.details[i] + '<br>';
+                }
+                popover = popover + 'Date: ' + d.date;
             }
-            popover = popover + 'Date: ' + d.date;
-        }
-        return popover;
-    },
-    marker: true,
-    context: true,
-    slider: true,
-    eventGrouping: 60000, //one minute
+            return popover;
+        },
+    marker:
+        true,
+    context:
+        true,
+    slider:
+        true,
+    labels:
+        true,
+    eventGrouping:
+        60000, //one minute
+
+    shape:
+        null,
 };
 
-config.dateFormat = config.locale ? config.locale.timeFormat('%a %x %I:%M %p') : d3.time.format('%a %x %I:%M %p');
+
+config.dateFormat = config.locale ? config.locale.timeFormat : d3.time.format('%a %x %I:%M %p');
 
 const defaultConfig = config;
 
@@ -155,7 +190,6 @@ function axesFactory(axesContainer, scales, configuration, dimensions) {
 //    import dropsFactory from './drops';
 
 function dropsFactory(svg, scales, configuration) {
-
     return function dropsSelector(data) {
         const dropLines = svg.selectAll('.timeline-pf-drop-line').data(data);
 
@@ -165,26 +199,38 @@ function dropsFactory(svg, scales, configuration) {
             .attr('transform', (d, idx) => `translate(0, ${scales.y(idx) + (configuration.lineHeight / 2)})`)
             .attr('fill', configuration.eventLineColor);
 
-        dropLines.each(function dropLineDraw(drop) {
+        dropLines.each(function dropLineDraw(drop, i) {
 
             const drops = d3.select(this).selectAll('.timeline-pf-drop').data(drop.data);
 
-            drops.attr('transform', (d) => `translate(${scales.x(d.date)})`);
+            drops.filter('text')
+                .attr('transform', (d) => `translate(${scales.x(d.date)})`);
+            drops.filter('rect')
+                .attr('x', function (d) {
+                    return scales.x(d.date)
+                })
+                .attr('width', function (d) {
+                    return scales.x(d.enddate) - scales.x(d.date)
+                })
+            drops.filter('polygon')
+                .attr('points', function (d) {
+                    try {
+                        return d.details.points.map(function (d) {
+                            return [scales.x(d.x), d.y].join(",");
+                        }).join(" ");
+                    }
+                    catch (err) {
+                        console.log('error')
+                    }
+                })
 
             const shape = drops.enter()
-                .append('text')
-                .classed('timeline-pf-drop', true)
-                .classed('timeline-pf-event-group', (d) => {
-                    return d.hasOwnProperty("events") ? true : false
-                })
-                .attr('transform', (d) => `translate(${scales.x(d.date)})`)
-                .attr('fill', configuration.eventColor)
-                .attr('text-anchor', 'middle')
-                .attr('data-toggle', 'popover')
-                .attr('data-html', 'true')
-                .attr('data-content', configuration.eventPopover)
-                .attr('dominant-baseline', 'central')
-                .text(configuration.eventShape);
+                .append(
+                    configuration.shape
+                    || function (d) {
+                        return createDrop(d, i, scales, configuration);
+                    }
+                );
 
             if (configuration.eventClick) {
                 shape.on('click', configuration.eventClick);
@@ -208,41 +254,46 @@ function dropsFactory(svg, scales, configuration) {
 
 //    import labelsFactory from './labels';
 
-function labelsFactory(container, scales, config) {
-    return function (data) {
-        const labels = container.selectAll('.timeline-pf-label').data(data);
+function labelsFactory(container, scales, configuration) {
+    if (configuration.labels) {
+        return function (data) {
+            const labels = container.selectAll('.timeline-pf-label').data(data);
 
-        const countEvents = data => {
-            let count = 0;
-            for (let i = 0; i < data.length; i++) {
-                if (data[i].hasOwnProperty("events")) {
-                    count += data[i].events.length;
-                } else {
-                    count++;
+            const countEvents = data => {
+                let count = 0;
+                for (let i = 0; i < data.length; i++) {
+                    if (data[i].hasOwnProperty("events")) {
+                        count += data[i].events.length;
+                    } else {
+                        count++;
+                    }
                 }
+                return count
             }
-            return count
-        }
-        const text = d => {
-            const count = countEvents(d.data);
-            if (d.name === undefined || d.name === '') {
-                return `${count} Events`;
-            }
-            return d.name + (count >= 0 ? ` (${count})` : '');
+            const text = d => {
+                const count = countEvents(d.data);
+                if (d.name === undefined || d.name === '') {
+                    return `${count} Events`;
+                }
+                return d.name + (count >= 0 ? ` (${count})` : '');
+            };
+
+            labels.text(text);
+
+            labels.enter()
+                .append('text')
+                .classed('timeline-pf-label', true)
+                .attr('transform', (d, idx) => `translate(${configuration.labelWidth - 20} ${scales.y(idx) + (configuration.lineHeight / 2)})`)
+                .attr('dominant-baseline', 'central')
+                .attr('text-anchor', 'end')
+                .text(text);
+
+            labels.exit().remove();
         };
-
-        labels.text(text);
-
-        labels.enter()
-            .append('text')
-            .classed('timeline-pf-label', true)
-            .attr('transform', (d, idx) => `translate(${config.labelWidth - 20} ${scales.y(idx) + (config.lineHeight / 2)})`)
-            .attr('dominant-baseline', 'central')
-            .attr('text-anchor', 'end')
-            .text(text);
-
-        labels.exit().remove();
-    };
+    } else {
+        return function () {
+        }
+    }
 }
 
 //    import markerFactory from './marker';
@@ -332,6 +383,10 @@ function drawer(svg, dimensions, scales, configuration) {
         .attr('x2', dimensions.width)
         .attr('y1', '1px')
         .attr('y2', '1px');
+
+    if (!configuration.labels) {
+        configuration.labelWidth = 0;
+    }
 
     const gridContainer = svg.append('g')
         .classed('timeline-pf-grid', true)
@@ -546,13 +601,13 @@ class Zoom {
             }
         });
         return this.grid.call(this.zoom)
-            .on("dblclick.zoom", null);
+            .on("dblclick.zoom", configuration.dblClick);
     }
 
     brushed() {
         if (this.brush.empty() !== true) {
             let extent = this.brush.extent();
-            this.zoomFilter(extent[0], extent[1], 0);
+            return this.zoomFilter(extent[0], extent[1], 0);
         }
     }
 
@@ -647,14 +702,14 @@ class Zoom {
 
         translate = translate * (target_zoom / curZoom); // scale translate value (in px) to new zoom scale
 
-        this.interpolateZoom([translate, 0], target_zoom, duration)
+        return this.interpolateZoom([translate, 0], target_zoom, duration); // so we can do something at the end of transition
     }
 }
 
 
 // timeline
-function timeline(config = {}) {
-    const finalConfiguration = {...defaultConfig, ...config};
+function pftimeline(config = {}) {
+    const finalConfiguration = Object.assign(defaultConfig, config); // {...defaultConfig, ...config};
     let zoomInstance = new Zoom();
 
     const yScale = (data) => {
@@ -707,6 +762,8 @@ function timeline(config = {}) {
                 });
             const draw = drawer(svg, dimensions, scales, finalConfiguration).bind(selection);
 
+            zoomInstance.updateZoom(d3.select(this), dimensions, scales, finalConfiguration, data, draw);
+
             draw(data);
 
             if (finalConfiguration.context) {
@@ -724,7 +781,7 @@ function timeline(config = {}) {
 }
 
 d3.chart = d3.chart || {};
-d3.chart.timeline = timeline;
+d3.chart.timeline = pftimeline;
 
 // module.exports = timeline;
 
