@@ -2,7 +2,6 @@
 // see https://hackernoon.com/a-tale-of-webpack-4-and-how-to-finally-configure-it-in-the-right-way-4e94c8e7e5c1
 
 const path = require('path');
-// const ExtractTextPlugin = require('extract-text-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
@@ -28,8 +27,13 @@ module.exports = {
         }
       },
       {
+        test: /\.css$/i,
+        use: ['style-loader', 'css-loader'],
+      },
+
+      {
         test: /\.scss$/,
-        use:  [  'style-loader', MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader']
+        use: ['style-loader', MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader']
       }
     ]
   },
@@ -37,13 +41,5 @@ module.exports = {
   externals: {
     d3: 'd3',
   },
-  plugins: [
-    require('./webpack/plugins')(PRODUCTION),
-    // new ExtractTextPlugin(
-    //   {filename: 'style.css', disable: false, allChunks: true }
-    // ),
-    new MiniCssExtractPlugin({
-      filename: 'style.[contenthash].css',
-    }),
-  ]
+  plugins: require('./webpack/plugins')(PRODUCTION),
 };
