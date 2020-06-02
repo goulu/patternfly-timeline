@@ -1,12 +1,10 @@
-var ExtractTextPlugin = require('extract-text-webpack-plugin');
-var HtmlWebpackPlugin = require('html-webpack-plugin');
-var ProvidePlugin = require('webpack').ProvidePlugin;
-
-var path = require('path');
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 module.exports = function (production) {
     var plugins = [
-        new ExtractTextPlugin('timeline.css', {
+        new MiniCssExtractPlugin('timeline.css', {
             allChunks: true
         }),
     ];
