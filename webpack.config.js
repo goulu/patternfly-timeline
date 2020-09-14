@@ -14,8 +14,7 @@ module.exports = {
   output: {
     path: __dirname + "/dist",
     filename: '[name].js',
-    library: 'timeline',
-    libraryTarget: 'umd'
+    library: 'timeline'
   },
   module: {
     rules: [
