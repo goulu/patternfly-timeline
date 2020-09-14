@@ -1,6 +1,6 @@
 import d3 from 'd3';
 
-const config = {
+export default config = {
   start: new Date(0),
   end: new Date(),
   contextStart: null,
@@ -74,4 +74,3 @@ const config = {
 
 config.dateFormat = config.locale ? config.locale.timeFormat('%a %x %I:%M %p') : d3.time.format('%a %x %I:%M %p');
 
-module.exports = config;

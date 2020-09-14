@@ -4,7 +4,8 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 module.exports = function (production) {
     var plugins = [
-        new MiniCssExtractPlugin('timeline.css', {
+        new MiniCssExtractPlugin({
+            filename: 'timeline.css', 
             allChunks: true
         }),
     ];
